@@ -12,8 +12,43 @@ function agentBaseUrl(): string {
   return process.env.AGENT_BASE_URL ?? DEFAULT_AGENT_URL;
 }
 
+/**
+ * Resolve the agent's API key for outbound CLI calls. The auth plugin
+ * requires it on every `/api/*` route. Resolution mirrors the agent's own
+ * `getAgentApiKey()` so the CLI works whether the operator passed
+ * AGENT_API_KEY/x-agent-api-key explicitly or relies on the persisted
+ * key in `<agent-dir>/config.json` (set on first boot).
+ */
+function authHeaders(): Record<string, string> {
+  const fromEnv = process.env.AGENT_API_KEY ?? process.env.X_AGENT_API_KEY;
+  if (fromEnv) return { "x-agent-api-key": fromEnv };
+  try {
+    // Best-effort: the agent persists `static-api-key` to its config.json.
+    // We read it lazily so the CLI doesn't pull in heavy deps just for auth.
+    const { readFileSync, existsSync } = require("node:fs") as typeof import("node:fs");
+    const { join, resolve } = require("node:path") as typeof import("node:path");
+    const dir = process.env.VIBECONTROLS_HOME
+      ?? join(process.cwd(), ".boff", "vibecontrols");
+    const configPath = join(
+      resolve(dir),
+      "agents",
+      process.env.VIBECONTROLS_AGENT_ID ?? "default",
+      "config.json",
+    );
+    if (existsSync(configPath)) {
+      const cfg = JSON.parse(readFileSync(configPath, "utf-8")) as { "static-api-key"?: string };
+      if (cfg["static-api-key"]) return { "x-agent-api-key": cfg["static-api-key"] };
+    }
+  } catch {
+    // Fall through — caller will surface the 401 as a clear error.
+  }
+  return {};
+}
+
 async function apiGet<T = any>(path: string): Promise<T> {
-  const res = await fetch(`${agentBaseUrl()}/api/tunnels${path}`);
+  const res = await fetch(`${agentBaseUrl()}/api/tunnels${path}`, {
+    headers: authHeaders(),
+  });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`GET ${path} failed (${res.status}): ${text}`);
@@ -24,7 +59,7 @@ async function apiGet<T = any>(path: string): Promise<T> {
 async function apiPost<T = any>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${agentBaseUrl()}/api/tunnels${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
@@ -37,6 +72,7 @@ async function apiPost<T = any>(path: string, body?: unknown): Promise<T> {
 async function apiDelete<T = any>(path: string): Promise<T> {
   const res = await fetch(`${agentBaseUrl()}/api/tunnels${path}`, {
     method: "DELETE",
+    headers: authHeaders(),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
