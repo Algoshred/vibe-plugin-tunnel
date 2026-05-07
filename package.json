@@ -1,6 +1,6 @@
 {
   "name": "@vibecontrols/vibe-plugin-tunnel",
-  "version": "2026.429.2",
+  "version": "2026.507.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

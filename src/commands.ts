@@ -32,7 +32,7 @@ function authHeaders(): Record<string, string> {
     const configPath = join(
       resolve(dir),
       "agents",
-      process.env.VIBECONTROLS_AGENT_ID ?? "default",
+      process.env.VIBECONTROLS_PROFILE ?? "default",
       "config.json",
     );
     if (existsSync(configPath)) {
