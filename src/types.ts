@@ -145,6 +145,9 @@ export interface CliContributorRegistryLike {
 }
 
 export interface HostServices {
+  telemetry?: {
+    emit: (name: string, payload?: Record<string, unknown>) => void;
+  };
   logger?: HostLogger;
   serviceRegistry?: ServiceRegistryLike;
   getConfig?(key: string): Promise<string | undefined>;
@@ -160,7 +163,18 @@ export type PluginTag =
   | "adapter"
   | "integration";
 
+export interface PluginCapabilities {
+  storage?: "none" | "read" | "rw";
+  secrets?: "none" | "read" | "rw";
+  gateway?: boolean;
+  broadcast?: boolean;
+  subprocess?: boolean;
+  audit?: boolean;
+  telemetry?: boolean;
+}
+
 export interface VibePlugin {
+  capabilities?: PluginCapabilities;
   name: string;
   version: string;
   description?: string;

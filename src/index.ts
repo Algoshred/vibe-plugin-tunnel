@@ -17,6 +17,13 @@ import type { HostServices, VibePlugin } from "./types.js";
 const manager = new TunnelManager();
 
 export const vibePlugin: VibePlugin = {
+  capabilities: {
+    storage: "rw",
+    subprocess: true,
+    broadcast: true,
+    audit: true,
+    telemetry: true,
+  },
   name: "tunnel",
   version: "0.1.0",
   description:
@@ -28,6 +35,7 @@ export const vibePlugin: VibePlugin = {
   createRoutes: () => createTunnelManagerRoutes(manager),
 
   onServerStart: (_app: unknown, hostServices: HostServices) => {
+    hostServices?.telemetry?.emit("tunnel.meta.ready", {});
     manager.init(hostServices);
   },
 

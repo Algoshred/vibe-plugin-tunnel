@@ -4,6 +4,9 @@
  * same flow works whether the agent is in-process or on localhost.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+
 import type { HostServices } from "./types.js";
 import {
   runMultimode,
@@ -52,11 +55,6 @@ function authHeaders(): Record<string, string> {
   if (fromEnv) return { "x-agent-api-key": fromEnv };
   try {
     // Best-effort: the agent persists `static-api-key` to its config.json.
-    // We read it lazily so the CLI doesn't pull in heavy deps just for auth.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { readFileSync, existsSync } = require("node:fs") as typeof import("node:fs");
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { join, resolve } = require("node:path") as typeof import("node:path");
     const dir = process.env.VIBECONTROLS_HOME
       ?? join(process.cwd(), ".boff", "vibecontrols");
     const configPath = join(
