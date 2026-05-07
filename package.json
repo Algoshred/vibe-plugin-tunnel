@@ -15,7 +15,7 @@
   },
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target bun --minify-syntax --minify-whitespace --external elysia && tsc --emitDeclarationOnly --declaration --outDir ./dist",
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun --minify-syntax --minify-whitespace --external elysia --external @opentui/core && tsc --emitDeclarationOnly --declaration --outDir ./dist",
     "dev": "tsc --watch",
     "lint": "eslint ./src",
     "format": "bunx prettier . --write",
