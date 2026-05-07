@@ -117,11 +117,39 @@ export interface HostLogger {
   debug(source: string, msg: string, meta?: Record<string, unknown>): void;
 }
 
+/**
+ * Minimal contributor surface — duck-typed against
+ * `vibecontrols-agent`'s `CliContributorRegistry`. Plugin uses these to
+ * inject status/doctor sections without depending on agent types.
+ */
+export interface CliContributorRegistryLike {
+  addStatusSection(section: {
+    source: string;
+    title: string;
+    render: (ctx: { agentUrl: string }) => Promise<string | null>;
+    json?: (ctx: { agentUrl: string }) => Promise<unknown>;
+    jsonKey?: string;
+  }): void;
+  addDoctorCheck(check: {
+    source: string;
+    run: () => Promise<
+      Array<{
+        name: string;
+        ok: boolean;
+        grade?: "warn";
+        message: string;
+        hint?: string;
+      }>
+    >;
+  }): void;
+}
+
 export interface HostServices {
   logger?: HostLogger;
   serviceRegistry?: ServiceRegistryLike;
   getConfig?(key: string): Promise<string | undefined>;
   setConfig?(key: string, value: string): Promise<void>;
+  cliContributors?: CliContributorRegistryLike;
 }
 
 export type PluginTag =
