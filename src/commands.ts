@@ -53,7 +53,9 @@ function authHeaders(): Record<string, string> {
   try {
     // Best-effort: the agent persists `static-api-key` to its config.json.
     // We read it lazily so the CLI doesn't pull in heavy deps just for auth.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { readFileSync, existsSync } = require("node:fs") as typeof import("node:fs");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { join, resolve } = require("node:path") as typeof import("node:path");
     const dir = process.env.VIBECONTROLS_HOME
       ?? join(process.cwd(), ".boff", "vibecontrols");
