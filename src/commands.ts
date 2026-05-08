@@ -55,8 +55,9 @@ function authHeaders(): Record<string, string> {
   if (fromEnv) return { "x-agent-api-key": fromEnv };
   try {
     // Best-effort: the agent persists `static-api-key` to its config.json.
-    const dir = process.env.VIBECONTROLS_HOME
-      ?? join(process.cwd(), ".boff", "vibecontrols");
+    const dir =
+      process.env.VIBECONTROLS_HOME ??
+      join(process.cwd(), ".boff", "vibecontrols");
     const configPath = join(
       resolve(dir),
       "agents",
@@ -64,8 +65,11 @@ function authHeaders(): Record<string, string> {
       "config.json",
     );
     if (existsSync(configPath)) {
-      const cfg = JSON.parse(readFileSync(configPath, "utf-8")) as { "static-api-key"?: string };
-      if (cfg["static-api-key"]) return { "x-agent-api-key": cfg["static-api-key"] };
+      const cfg = JSON.parse(readFileSync(configPath, "utf-8")) as {
+        "static-api-key"?: string;
+      };
+      if (cfg["static-api-key"])
+        return { "x-agent-api-key": cfg["static-api-key"] };
     }
   } catch {
     // Fall through — caller will surface the 401 as a clear error.
@@ -216,7 +220,15 @@ export function registerTunnelCommands(
       const result = await apiPost(`/${tunnelId}/start`, {
         provider: opts.provider,
       });
-      if (maybePrintJson(opts, { ok: true, action: "start", tunnelId, result: redactSecrets(result) })) return;
+      if (
+        maybePrintJson(opts, {
+          ok: true,
+          action: "start",
+          tunnelId,
+          result: redactSecrets(result),
+        })
+      )
+        return;
       console.log(JSON.stringify(result, null, 2));
     });
 
@@ -230,7 +242,15 @@ export function registerTunnelCommands(
       const result = await apiPost(`/${tunnelId}/stop`, {
         provider: opts.provider,
       });
-      if (maybePrintJson(opts, { ok: true, action: "stop", tunnelId, result: redactSecrets(result) })) return;
+      if (
+        maybePrintJson(opts, {
+          ok: true,
+          action: "stop",
+          tunnelId,
+          result: redactSecrets(result),
+        })
+      )
+        return;
       console.log(JSON.stringify(result, null, 2));
     });
 
@@ -245,7 +265,15 @@ export function registerTunnelCommands(
         ? `?provider=${encodeURIComponent(opts.provider)}`
         : "";
       const result = await apiDelete(`/${tunnelId}${qs}`);
-      if (maybePrintJson(opts, { ok: true, action: "delete", tunnelId, result: redactSecrets(result) })) return;
+      if (
+        maybePrintJson(opts, {
+          ok: true,
+          action: "delete",
+          tunnelId,
+          result: redactSecrets(result),
+        })
+      )
+        return;
       console.log(JSON.stringify(result, null, 2));
     });
 
@@ -365,7 +393,15 @@ export function registerTunnelCommands(
     .option("--plain", "Force plain text output")
     .action(async (name: string, opts: OutputFlags) => {
       const result = await apiPost(`/default`, { provider: name });
-      if (maybePrintJson(opts, { ok: true, action: "set-default", provider: name, result: redactSecrets(result) })) return;
+      if (
+        maybePrintJson(opts, {
+          ok: true,
+          action: "set-default",
+          provider: name,
+          result: redactSecrets(result),
+        })
+      )
+        return;
       console.log(JSON.stringify(result, null, 2));
     });
 
@@ -378,34 +414,48 @@ export function registerTunnelCommands(
     .option("--provider <name>")
     .option("--json", "Emit JSON")
     .option("--plain", "Force plain text output")
-    .action(
-      async (tunnelId: string, domain: string, opts: CommonFlags) => {
-        const result = await apiPost(`/${tunnelId}/domains`, {
+    .action(async (tunnelId: string, domain: string, opts: CommonFlags) => {
+      const result = await apiPost(`/${tunnelId}/domains`, {
+        domain,
+        provider: opts.provider,
+      });
+      if (
+        maybePrintJson(opts, {
+          ok: true,
+          action: "domains-add",
+          tunnelId,
           domain,
-          provider: opts.provider,
-        });
-        if (maybePrintJson(opts, { ok: true, action: "domains-add", tunnelId, domain, result: redactSecrets(result) })) return;
-        console.log(JSON.stringify(result, null, 2));
-      },
-    );
+          result: redactSecrets(result),
+        })
+      )
+        return;
+      console.log(JSON.stringify(result, null, 2));
+    });
 
   domainsCmd
     .command("rm <tunnelId> <domain>")
     .option("--provider <name>")
     .option("--json", "Emit JSON")
     .option("--plain", "Force plain text output")
-    .action(
-      async (tunnelId: string, domain: string, opts: CommonFlags) => {
-        const qs = opts.provider
-          ? `?provider=${encodeURIComponent(opts.provider)}`
-          : "";
-        const result = await apiDelete(
-          `/${tunnelId}/domains/${encodeURIComponent(domain)}${qs}`,
-        );
-        if (maybePrintJson(opts, { ok: true, action: "domains-rm", tunnelId, domain, result: redactSecrets(result) })) return;
-        console.log(JSON.stringify(result, null, 2));
-      },
-    );
+    .action(async (tunnelId: string, domain: string, opts: CommonFlags) => {
+      const qs = opts.provider
+        ? `?provider=${encodeURIComponent(opts.provider)}`
+        : "";
+      const result = await apiDelete(
+        `/${tunnelId}/domains/${encodeURIComponent(domain)}${qs}`,
+      );
+      if (
+        maybePrintJson(opts, {
+          ok: true,
+          action: "domains-rm",
+          tunnelId,
+          domain,
+          result: redactSecrets(result),
+        })
+      )
+        return;
+      console.log(JSON.stringify(result, null, 2));
+    });
 
   cmd
     .command("doctor")
@@ -420,7 +470,9 @@ export function registerTunnelCommands(
           plain: (health) => {
             console.log(`manager: ${health.manager}`);
             for (const p of health.providers) {
-              console.log(`  ${p.name}: ${p.ok ? "ok" : `fail - ${p.message}`}`);
+              console.log(
+                `  ${p.name}: ${p.ok ? "ok" : `fail - ${p.message}`}`,
+              );
             }
           },
           interactive: async (health) => {

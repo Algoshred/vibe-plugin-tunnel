@@ -12,37 +12,51 @@
 import { registerTunnelCommands } from "./commands.js";
 import { TunnelManager } from "./manager.js";
 import { createTunnelManagerRoutes } from "./routes.js";
-import type { HostServices, VibePlugin } from "./types.js";
+import type {
+  HostServices,
+  ProfileContext,
+  VibePlugin,
+  VibePluginFactory,
+} from "./types.js";
 
-const manager = new TunnelManager();
+/**
+ * Plugin Contract v2 factory. Per-profile state (the TunnelManager
+ * instance) lives in this closure so concurrent profiles cannot share
+ * a manager across ProfileContexts.
+ */
+export const createPlugin: VibePluginFactory = (
+  _ctx: ProfileContext,
+): VibePlugin => {
+  const manager = new TunnelManager();
 
-export const vibePlugin: VibePlugin = {
-  capabilities: {
-    storage: "rw",
-    subprocess: true,
-    broadcast: true,
-    audit: true,
-    telemetry: true,
-  },
-  name: "tunnel",
-  version: "0.1.0",
-  description:
-    "VibeTunnels manager — dispatches to registered tunnel providers",
-  tags: ["backend", "cli", "integration"],
-  cliCommand: "tunnel",
-  apiPrefix: "/api/tunnels",
+  return {
+    capabilities: {
+      storage: "rw",
+      subprocess: true,
+      broadcast: true,
+      audit: true,
+      telemetry: true,
+    },
+    name: "tunnel",
+    version: "0.1.0",
+    description:
+      "VibeTunnels manager — dispatches to registered tunnel providers",
+    tags: ["backend", "cli", "integration"],
+    cliCommand: "tunnel",
+    apiPrefix: "/api/tunnels",
 
-  createRoutes: () => createTunnelManagerRoutes(manager),
+    createRoutes: () => createTunnelManagerRoutes(manager),
 
-  onServerStart: (_app: unknown, hostServices: HostServices) => {
-    hostServices?.telemetry?.emit("tunnel.meta.ready", {});
-    manager.init(hostServices);
-  },
+    onServerStart: (_app: unknown, hostServices: HostServices) => {
+      hostServices?.telemetry?.emit("tunnel.meta.ready", {});
+      manager.init(hostServices);
+    },
 
-  onCliSetup: (program: unknown, hostServices: HostServices) => {
-    registerTunnelCommands(program, hostServices);
-    registerStatusContributors(hostServices);
-  },
+    onCliSetup: (program: unknown, hostServices: HostServices) => {
+      registerTunnelCommands(program, hostServices);
+      registerStatusContributors(hostServices);
+    },
+  };
 };
 
 function registerStatusContributors(hostServices: HostServices): void {
@@ -91,8 +105,10 @@ function registerStatusContributors(hostServices: HostServices): void {
       // touching the agent's filesystem directly. Falls through silently
       // when the route isn't reachable yet.
       try {
-        const port = (process.env.AGENT_URL ?? "http://localhost:3005")
-          .replace(/\/+$/, "");
+        const port = (process.env.AGENT_URL ?? "http://localhost:3005").replace(
+          /\/+$/,
+          "",
+        );
         const res = await fetch(`${port}/api/agent/tunnel`);
         if (!res.ok) return [];
         const t = (await res.json()) as {
@@ -135,6 +151,6 @@ function registerStatusContributors(hostServices: HostServices): void {
   });
 }
 
-export default vibePlugin;
+export default createPlugin;
 export { TunnelManager } from "./manager.js";
 export type * from "./types.js";

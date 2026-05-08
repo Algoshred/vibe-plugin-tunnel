@@ -155,6 +155,27 @@ export interface HostServices {
   cliContributors?: CliContributorRegistryLike;
 }
 
+/**
+ * Minimal facade of the agent's ProfileContext. Plugins have no hard
+ * dependency on the agent package; they accept whichever shape the agent
+ * passes that is structurally compatible with this interface.
+ */
+export interface ProfileContext {
+  name: string;
+  dataDir: string;
+  logger: {
+    info: (...args: unknown[]) => void;
+    warn: (...args: unknown[]) => void;
+    error: (...args: unknown[]) => void;
+    debug: (...args: unknown[]) => void;
+  };
+  audit?: {
+    emit: (event: string, payload?: unknown) => void;
+  };
+}
+
+export type VibePluginFactory = (ctx: ProfileContext) => VibePlugin;
+
 export type PluginTag =
   | "backend"
   | "frontend"
