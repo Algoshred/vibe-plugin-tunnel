@@ -13,7 +13,7 @@ import {
   pickOutputMode,
   maybePrintJson,
   type OutputFlags,
-} from "./utils/multimode.js";
+} from "@vibecontrols/plugin-sdk";
 import {
   interactiveTable,
   interactiveDetail,
