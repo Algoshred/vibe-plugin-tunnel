@@ -84,12 +84,21 @@ export const createPlugin: VibePluginFactory = (
 function registerCliContributors(hostServices: HostServices): void {
   const providers = new ProviderRegistry(hostServices);
 
+  // The agent's bare `/api/*` surface was retired; every data-plane
+  // endpoint is profile-scoped. Resolve the running profile the same way
+  // path-utils.ts does so this contributor addresses the canonical URL
+  // (the bare path returns HTTP 410).
+  const tunnelPath = (): string => {
+    const profile = process.env.VIBECONTROLS_PROFILE || "default";
+    return `/api/profiles/${encodeURIComponent(profile)}/agent/tunnel`;
+  };
+
   const statusSection: TunnelStatusSection = {
     source: "tunnel",
     title: "Tunnel",
     render: async ({ agentUrl }) => {
       try {
-        const res = await fetch(`${agentUrl}/api/agent/tunnel`);
+        const res = await fetch(`${agentUrl}${tunnelPath()}`);
         if (!res.ok) return null;
         const t = (await res.json()) as {
           tunnelUrl?: string;
@@ -109,7 +118,7 @@ function registerCliContributors(hostServices: HostServices): void {
     },
     json: async ({ agentUrl }) => {
       try {
-        const res = await fetch(`${agentUrl}/api/agent/tunnel`);
+        const res = await fetch(`${agentUrl}${tunnelPath()}`);
         if (!res.ok) return null;
         return await res.json();
       } catch {
@@ -130,7 +139,7 @@ function registerCliContributors(hostServices: HostServices): void {
           /\/+$/,
           "",
         );
-        const res = await fetch(`${port}/api/agent/tunnel`);
+        const res = await fetch(`${port}${tunnelPath()}`);
         if (!res.ok) return [];
         const t = (await res.json()) as {
           status?: string;
