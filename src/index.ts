@@ -9,15 +9,25 @@
  * provider. It delegates to whichever provider the caller chooses, or
  * to the default configured via `vibe tunnel providers set-default`.
  */
-import { registerTunnelCommands } from "./commands.js";
-import { TunnelManager } from "./manager.js";
-import { createTunnelManagerRoutes } from "./routes.js";
+import {
+  createLifecycleHooks,
+  ProviderRegistry,
+  TelemetryEmitter,
+} from "@vibecontrols/plugin-sdk";
 import type {
   HostServices,
   ProfileContext,
   VibePlugin,
   VibePluginFactory,
-} from "./types.js";
+} from "@vibecontrols/plugin-sdk/contract";
+
+import { registerTunnelCommands } from "./commands.js";
+import { TunnelManager } from "./manager.js";
+import { createTunnelManagerRoutes } from "./routes.js";
+import type { TunnelDoctorCheck, TunnelStatusSection } from "./types.js";
+
+const PLUGIN_NAME = "tunnel";
+const PLUGIN_VERSION = "0.1.0";
 
 /**
  * Plugin Contract v2 factory. Per-profile state (the TunnelManager
@@ -28,6 +38,16 @@ export const createPlugin: VibePluginFactory = (
   _ctx: ProfileContext,
 ): VibePlugin => {
   const manager = new TunnelManager();
+  const telemetry = new TelemetryEmitter(PLUGIN_NAME, PLUGIN_VERSION);
+
+  const lifecycle = createLifecycleHooks({
+    name: PLUGIN_NAME,
+    telemetryEventName: "tunnel.meta.ready",
+    onInit: (hostServices: HostServices) => {
+      manager.init(hostServices);
+      telemetry.emit("tunnel.manager.ready");
+    },
+  });
 
   return {
     capabilities: {
@@ -37,8 +57,8 @@ export const createPlugin: VibePluginFactory = (
       audit: true,
       telemetry: true,
     },
-    name: "tunnel",
-    version: "0.1.0",
+    name: PLUGIN_NAME,
+    version: PLUGIN_VERSION,
     description:
       "VibeTunnels manager — dispatches to registered tunnel providers",
     tags: ["backend", "cli", "integration"],
@@ -47,23 +67,24 @@ export const createPlugin: VibePluginFactory = (
 
     createRoutes: () => createTunnelManagerRoutes(manager),
 
-    onServerStart: (_app: unknown, hostServices: HostServices) => {
-      hostServices?.telemetry?.emit("tunnel.meta.ready", {});
-      manager.init(hostServices);
-    },
+    onServerStart: lifecycle.onServerStart,
+    onServerStop: lifecycle.onServerStop,
 
     onCliSetup: (program: unknown, hostServices: HostServices) => {
-      registerTunnelCommands(program, hostServices);
-      registerStatusContributors(hostServices);
+      // Commander-shaped surface — typed locally in commands.ts.
+      registerTunnelCommands(
+        program as Parameters<typeof registerTunnelCommands>[0],
+        hostServices,
+      );
+      registerCliContributors(hostServices);
     },
   };
 };
 
-function registerStatusContributors(hostServices: HostServices): void {
-  const reg = hostServices.cliContributors;
-  if (!reg) return; // older agent without contributor registry — graceful no-op
+function registerCliContributors(hostServices: HostServices): void {
+  const providers = new ProviderRegistry(hostServices);
 
-  reg.addStatusSection({
+  const statusSection: TunnelStatusSection = {
     source: "tunnel",
     title: "Tunnel",
     render: async ({ agentUrl }) => {
@@ -96,9 +117,9 @@ function registerStatusContributors(hostServices: HostServices): void {
       }
     },
     jsonKey: "tunnel",
-  });
+  };
 
-  reg.addDoctorCheck({
+  const doctorCheck: TunnelDoctorCheck = {
     source: "tunnel",
     run: async () => {
       // The plugin reads its own state via the agent API rather than
@@ -148,6 +169,11 @@ function registerStatusContributors(hostServices: HostServices): void {
         return [];
       }
     },
+  };
+
+  providers.withCliContribution({
+    statusSections: [statusSection],
+    doctorChecks: [doctorCheck],
   });
 }
 

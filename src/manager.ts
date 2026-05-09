@@ -5,15 +5,16 @@
  * dispatches each operation to the selected provider. Falls back to the
  * configured default provider when no explicit name is given.
  */
+import { BoundLogger } from "@vibecontrols/plugin-sdk";
+import type { HostServices } from "@vibecontrols/plugin-sdk/contract";
+
 import {
   DEFAULT_PROVIDER_CONFIG_KEY,
-  type HostLogger,
-  type HostServices,
   type IssueSessionRequest,
-  type ServiceRegistryLike,
   type TunnelInfo,
   type TunnelProvider,
   type TunnelProviderCapabilities,
+  type TunnelServiceRegistry,
   type TunnelSessionInfo,
 } from "./types.js";
 
@@ -31,20 +32,20 @@ export interface TunnelDispatchOptions {
 }
 
 export class TunnelManager {
-  private registry?: ServiceRegistryLike;
+  private registry?: TunnelServiceRegistry;
   private host?: HostServices;
-  private log: HostLogger = {
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-    debug: () => {},
-  };
+  private log: BoundLogger = new BoundLogger(undefined, LOG_SOURCE);
 
   init(host: HostServices): void {
     this.host = host;
-    this.registry = host.serviceRegistry;
-    if (host.logger) this.log = host.logger;
-    this.log.info(LOG_SOURCE, "Tunnel manager initialized");
+    // The agent's runtime registry exposes a richer surface than the SDK's
+    // neutral `ServiceRegistry` (provider defaults + listing entries). It's
+    // structurally compatible — narrow via a single cast at the boundary.
+    this.registry = host.serviceRegistry as unknown as
+      | TunnelServiceRegistry
+      | undefined;
+    this.log = new BoundLogger(host.logger, LOG_SOURCE);
+    this.log.info("Tunnel manager initialized");
   }
 
   // ── Provider resolution ──────────────────────────────────────────────
@@ -129,13 +130,9 @@ export class TunnelManager {
         const tunnels = await provider.list();
         results.push({ provider: entry.pluginName, tunnels });
       } catch (err) {
-        this.log.warn(
-          LOG_SOURCE,
-          `listAllTunnels: ${entry.pluginName} failed`,
-          {
-            error: String(err),
-          },
-        );
+        this.log.warn(`listAllTunnels: ${entry.pluginName} failed`, {
+          error: String(err),
+        });
       }
     }
     return results;
@@ -305,9 +302,21 @@ export class TunnelManager {
     if (this.registry?.setProviderDefault) {
       this.registry.setProviderDefault("tunnel", providerName);
     }
-    if (this.host?.setConfig) {
-      await this.host.setConfig(DEFAULT_PROVIDER_CONFIG_KEY, providerName);
+    // The agent's runtime host exposes `setConfig`, but the SDK contract
+    // surface only declares `getConfig`. Optional-chain through a narrow
+    // structural cast so we persist when the host supports it and no-op
+    // otherwise.
+    const hostWithSetConfig = this.host as
+      | (HostServices & {
+          setConfig?: (key: string, value: string) => Promise<void>;
+        })
+      | undefined;
+    if (hostWithSetConfig?.setConfig) {
+      await hostWithSetConfig.setConfig(
+        DEFAULT_PROVIDER_CONFIG_KEY,
+        providerName,
+      );
     }
-    this.log.info(LOG_SOURCE, `Default tunnel provider set to ${providerName}`);
+    this.log.info(`Default tunnel provider set to ${providerName}`);
   }
 }

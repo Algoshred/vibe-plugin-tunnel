@@ -3,11 +3,11 @@
  * the local agent REST API rather than touching providers directly so the
  * same flow works whether the agent is in-process or on localhost.
  */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import type { HostServices } from "./types.js";
+import type { HostServices } from "@vibecontrols/plugin-sdk/contract";
+
 import {
   runMultimode,
   pickOutputMode,
@@ -77,7 +77,7 @@ function authHeaders(): Record<string, string> {
   return {};
 }
 
-async function apiGet<T = any>(path: string): Promise<T> {
+async function apiGet<T = unknown>(path: string): Promise<T> {
   const res = await fetch(`${agentBaseUrl()}/api/tunnels${path}`, {
     headers: authHeaders(),
   });
@@ -88,7 +88,7 @@ async function apiGet<T = any>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-async function apiPost<T = any>(path: string, body?: unknown): Promise<T> {
+async function apiPost<T = unknown>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${agentBaseUrl()}/api/tunnels${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -101,7 +101,7 @@ async function apiPost<T = any>(path: string, body?: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
-async function apiDelete<T = any>(path: string): Promise<T> {
+async function apiDelete<T = unknown>(path: string): Promise<T> {
   const res = await fetch(`${agentBaseUrl()}/api/tunnels${path}`, {
     method: "DELETE",
     headers: authHeaders(),
@@ -117,9 +117,54 @@ interface CommonFlags extends OutputFlags {
   provider?: string;
 }
 
-function tunnelDetail(t: any): string {
+interface TunnelRow {
+  id?: string | number;
+  providerName?: string;
+  status?: string;
+  url?: string;
+  protocol?: string;
+  localPort?: number;
+  domains?: string[];
+}
+
+interface ProviderRow {
+  name: string;
+  isDefault?: boolean;
+  health: { ok: boolean; message?: string };
+}
+
+interface SessionRow {
+  id?: string | number;
+  status?: string;
+}
+
+interface HealthShape {
+  manager: string;
+  providers: Array<{ name: string; ok: boolean; message?: string }>;
+}
+
+/**
+ * Minimal commander-shaped surface — keeps the plugin free of a hard
+ * dependency on the `commander` package while still type-checking the
+ * builder chain.
+ */
+/**
+ * Minimal commander-shaped surface. We type `.action` as a generic so the
+ * concrete handler signature for each subcommand is preserved without
+ * needing `any` or eslint-disable comments. Mirrors commander.js's runtime
+ * contract where each positional `<arg>` becomes a leading parameter and
+ * trailing parameters carry the parsed flags.
+ */
+interface CommanderLike {
+  command(name: string): CommanderLike;
+  description(text: string): CommanderLike;
+  option(flag: string, description?: string): CommanderLike;
+  action<H extends (...args: never[]) => unknown>(handler: H): CommanderLike;
+}
+
+function tunnelDetail(t: TunnelRow): string {
   const lines = [
-    `id:        ${t.id}`,
+    `id:        ${t.id ?? "-"}`,
     `provider:  ${t.providerName ?? "-"}`,
     `status:    ${t.status ?? "-"}`,
     `url:       ${t.url ?? "-"}`,
@@ -133,7 +178,7 @@ function tunnelDetail(t: any): string {
 }
 
 export function registerTunnelCommands(
-  program: any,
+  program: CommanderLike,
   _hostServices: HostServices,
 ): void {
   const cmd = program
@@ -150,9 +195,9 @@ export function registerTunnelCommands(
       const qs = opts.provider
         ? `?provider=${encodeURIComponent(opts.provider)}`
         : "";
-      await runMultimode<{ tunnels: any[] }>({
+      await runMultimode<{ tunnels: TunnelRow[] }>({
         mode: pickOutputMode(opts),
-        fetchData: () => apiGet<{ tunnels: any[] }>(`/${qs}`),
+        fetchData: () => apiGet<{ tunnels: TunnelRow[] }>(`/${qs}`),
         plain: (result) => {
           if (result.tunnels.length === 0) {
             console.log("No tunnels.");
@@ -194,9 +239,9 @@ export function registerTunnelCommands(
       const qs = opts.provider
         ? `?provider=${encodeURIComponent(opts.provider)}`
         : "";
-      await runMultimode<any>({
+      await runMultimode<TunnelRow>({
         mode: pickOutputMode(opts),
-        fetchData: () => apiGet(`/${tunnelId}${qs}`),
+        fetchData: () => apiGet<TunnelRow>(`/${tunnelId}${qs}`),
         plain: (result) => {
           console.log(JSON.stringify(result, null, 2));
         },
@@ -287,18 +332,24 @@ export function registerTunnelCommands(
       const qs = opts.provider
         ? `?provider=${encodeURIComponent(opts.provider)}`
         : "";
-      await runMultimode<any>({
+      await runMultimode<unknown>({
         mode: pickOutputMode(opts),
         fetchData: () => apiGet(`/${tunnelId}/sessions${qs}`),
         plain: (result) => {
           console.log(JSON.stringify(result, null, 2));
         },
         interactive: async (result) => {
-          const sessions: any[] = Array.isArray(result?.sessions)
-            ? result.sessions
-            : Array.isArray(result)
-              ? result
-              : [];
+          const sessions: SessionRow[] = (() => {
+            if (
+              result &&
+              typeof result === "object" &&
+              "sessions" in result &&
+              Array.isArray((result as { sessions: unknown }).sessions)
+            ) {
+              return (result as { sessions: SessionRow[] }).sessions;
+            }
+            return Array.isArray(result) ? (result as SessionRow[]) : [];
+          })();
           if (sessions.length === 0) {
             await interactiveDetail({
               title: `sessions — ${tunnelId}`,
@@ -327,7 +378,7 @@ export function registerTunnelCommands(
     .option("--json", "Emit JSON")
     .option("--plain", "Force plain text output")
     .action(async (opts: OutputFlags) => {
-      await runMultimode<any>({
+      await runMultimode<unknown>({
         mode: pickOutputMode(opts),
         fetchData: () => apiGet(`/health`),
         plain: (result) => {
@@ -353,9 +404,9 @@ export function registerTunnelCommands(
     .option("--json", "Emit JSON")
     .option("--plain", "Force plain text output")
     .action(async (opts: OutputFlags) => {
-      await runMultimode<{ providers: any[] }>({
+      await runMultimode<{ providers: ProviderRow[] }>({
         mode: pickOutputMode(opts),
-        fetchData: () => apiGet<{ providers: any[] }>(`/providers`),
+        fetchData: () => apiGet<{ providers: ProviderRow[] }>(`/providers`),
         plain: (result) => {
           for (const p of result.providers) {
             const star = p.isDefault ? "* " : "  ";
@@ -464,9 +515,9 @@ export function registerTunnelCommands(
     .option("--plain", "Force plain text output")
     .action(async (opts: OutputFlags) => {
       try {
-        await runMultimode<any>({
+        await runMultimode<HealthShape>({
           mode: pickOutputMode(opts),
-          fetchData: () => apiGet<any>(`/health`),
+          fetchData: () => apiGet<HealthShape>(`/health`),
           plain: (health) => {
             console.log(`manager: ${health.manager}`);
             for (const p of health.providers) {

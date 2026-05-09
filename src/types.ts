@@ -1,6 +1,7 @@
 /**
- * Locally-redeclared types so the plugin has no hard dependency on
- * @vibecontrols/agent. Keeps plugin bundles self-contained.
+ * Tunnel-domain types (provider contract, session/info shapes). Plugin
+ * lifecycle / host / profile / capability types now come from
+ * `@vibecontrols/plugin-sdk` and `@vibecontrols/plugin-sdk/contract`.
  */
 
 export type TunnelStatus =
@@ -97,7 +98,14 @@ export interface TunnelProvider {
   getActiveTunnelUrl?(): Promise<string | null>;
 }
 
-export interface ServiceRegistryLike {
+/**
+ * The tunnel manager dispatches via the agent's runtime registry which
+ * exposes a richer surface than the SDK's neutral `ServiceRegistry`
+ * (provider defaults, listing as `{pluginName, isDefault}` entries).
+ * We declare a structural extension so the manager can talk to it
+ * without depending on the agent package directly.
+ */
+export interface TunnelServiceRegistry {
   registerService?(
     pluginName: string,
     serviceName: string,
@@ -110,115 +118,30 @@ export interface ServiceRegistryLike {
   setProviderDefault?(type: string, name: string): void;
 }
 
-export interface HostLogger {
-  info(source: string, msg: string, meta?: Record<string, unknown>): void;
-  warn(source: string, msg: string, meta?: Record<string, unknown>): void;
-  error(source: string, msg: string, meta?: Record<string, unknown>): void;
-  debug(source: string, msg: string, meta?: Record<string, unknown>): void;
-}
-
 /**
- * Minimal contributor surface — duck-typed against
- * `vibecontrols-agent`'s `CliContributorRegistry`. Plugin uses these to
- * inject status/doctor sections without depending on agent types.
+ * Status / doctor contributor entry shapes — duck-typed against the
+ * agent's `CliContributorRegistry`. Used as the strongly-typed inputs to
+ * `ProviderRegistry.withCliContribution`.
  */
-export interface CliContributorRegistryLike {
-  addStatusSection(section: {
-    source: string;
-    title: string;
-    render: (ctx: { agentUrl: string }) => Promise<string | null>;
-    json?: (ctx: { agentUrl: string }) => Promise<unknown>;
-    jsonKey?: string;
-  }): void;
-  addDoctorCheck(check: {
-    source: string;
-    run: () => Promise<
-      Array<{
-        name: string;
-        ok: boolean;
-        grade?: "warn";
-        message: string;
-        hint?: string;
-      }>
-    >;
-  }): void;
+export interface TunnelStatusSection {
+  source: string;
+  title: string;
+  render: (ctx: { agentUrl: string }) => Promise<string | null>;
+  json?: (ctx: { agentUrl: string }) => Promise<unknown>;
+  jsonKey?: string;
 }
 
-export interface HostServices {
-  telemetry?: {
-    emit: (name: string, payload?: Record<string, unknown>) => void;
-  };
-  logger?: HostLogger;
-  serviceRegistry?: ServiceRegistryLike;
-  getConfig?(key: string): Promise<string | undefined>;
-  setConfig?(key: string, value: string): Promise<void>;
-  cliContributors?: CliContributorRegistryLike;
-}
-
-/**
- * Minimal facade of the agent's ProfileContext. Plugins have no hard
- * dependency on the agent package; they accept whichever shape the agent
- * passes that is structurally compatible with this interface.
- */
-export interface ProfileContext {
-  name: string;
-  dataDir: string;
-  logger: {
-    info: (...args: unknown[]) => void;
-    warn: (...args: unknown[]) => void;
-    error: (...args: unknown[]) => void;
-    debug: (...args: unknown[]) => void;
-  };
-  audit?: {
-    emit: (event: string, payload?: unknown) => void;
-  };
-}
-
-export type VibePluginFactory = (ctx: ProfileContext) => VibePlugin;
-
-export type PluginTag =
-  | "backend"
-  | "frontend"
-  | "cli"
-  | "provider"
-  | "adapter"
-  | "integration";
-
-export interface PluginCapabilities {
-  storage?: "none" | "read" | "rw";
-  secrets?: "none" | "read" | "rw";
-  gateway?: boolean;
-  broadcast?: boolean;
-  subprocess?: boolean;
-  audit?: boolean;
-  telemetry?: boolean;
-}
-
-export interface VibePlugin {
-  capabilities?: PluginCapabilities;
-  name: string;
-  version: string;
-  description?: string;
-  tags?: PluginTag[];
-  cliCommand?: string;
-  apiPrefix?: string;
-  dependencies?: string[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createRoutes?: (deps: { serviceRegistry: ServiceRegistryLike }) => any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onCliSetup?: (
-    program: any,
-    hostServices: HostServices,
-  ) => void | Promise<void>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onServerStart?: (
-    app: any,
-    hostServices: HostServices,
-  ) => void | Promise<void>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onServerStop?: (ctx?: {
-    reason: "reload" | "shutdown";
-  }) => void | Promise<void>;
+export interface TunnelDoctorCheck {
+  source: string;
+  run: () => Promise<
+    Array<{
+      name: string;
+      ok: boolean;
+      grade?: "warn";
+      message: string;
+      hint?: string;
+    }>
+  >;
 }
 
 export const DEFAULT_PROVIDER_CONFIG_KEY = "provider:default:tunnel";
