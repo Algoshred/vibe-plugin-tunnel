@@ -6,7 +6,7 @@
   "types": "./dist/index.d.ts",
   "description": "Unified tunnel manager \u2014 routes requests across registered tunnel providers (vibetunnels, cloudflare)",
   "engines": {
-    "bun": ">=1.3.0"
+    "bun": ">=1.3.14"
   },
   "author": {
     "name": "Vignesh T.V",
