@@ -65,6 +65,18 @@ export const createPlugin: VibePluginFactory = (
     cliCommand: "tunnel",
     apiPrefix: "/api/tunnels",
 
+    metaProviders: [
+      {
+        packageName: "@vibecontrols/vibe-plugin-tunnel-cloudflare",
+        pluginName: "tunnel-cloudflare",
+        defaultOn: ["linux", "darwin", "win32"],
+      },
+      {
+        packageName: "@vibecontrols/vibe-plugin-tunnel-vibetunnels",
+        pluginName: "tunnel-vibetunnels",
+      },
+    ],
+
     createRoutes: () => createTunnelManagerRoutes(manager),
 
     onServerStart: lifecycle.onServerStart,
