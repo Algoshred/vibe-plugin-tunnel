@@ -11,15 +11,36 @@
  */
 import {
   createLifecycleHooks,
+  provisionMetaProviders,
   ProviderRegistry,
   TelemetryEmitter,
 } from "@vibecontrols/plugin-sdk";
 import type {
   HostServices,
+  MetaProviderRef,
   ProfileContext,
   VibePlugin,
   VibePluginFactory,
 } from "@vibecontrols/plugin-sdk/contract";
+
+/**
+ * Provider packages this meta routes to + per-platform defaults. The agent
+ * reads this to know nothing more than "the tunnel meta exists"; the meta
+ * drives install/elect of its own providers via `provisionProviders`.
+ */
+const TUNNEL_PROVIDERS: ReadonlyArray<MetaProviderRef> = [
+  {
+    packageName: "@vibecontrols/vibe-plugin-tunnel-cloudflare",
+    pluginName: "tunnel-cloudflare",
+    defaultOn: ["linux", "darwin", "win32"],
+    providerType: "tunnel",
+  },
+  {
+    packageName: "@vibecontrols/vibe-plugin-tunnel-vibetunnels",
+    pluginName: "tunnel-vibetunnels",
+    providerType: "tunnel",
+  },
+];
 
 import { registerTunnelCommands } from "./commands.js";
 import { TunnelManager } from "./manager.js";
@@ -65,22 +86,16 @@ export const createPlugin: VibePluginFactory = (
     cliCommand: "tunnel",
     apiPrefix: "/api/tunnels",
 
-    metaProviders: [
-      {
-        packageName: "@vibecontrols/vibe-plugin-tunnel-cloudflare",
-        pluginName: "tunnel-cloudflare",
-        defaultOn: ["linux", "darwin", "win32"],
-      },
-      {
-        packageName: "@vibecontrols/vibe-plugin-tunnel-vibetunnels",
-        pluginName: "tunnel-vibetunnels",
-      },
-    ],
+    metaProviders: TUNNEL_PROVIDERS,
 
     createRoutes: () => createTunnelManagerRoutes(manager),
 
     onServerStart: lifecycle.onServerStart,
     onServerStop: lifecycle.onServerStop,
+
+    // The meta — not the agent — installs/loads/prereqs/elects its providers.
+    provisionProviders: (hostServices: HostServices) =>
+      provisionMetaProviders(hostServices, TUNNEL_PROVIDERS),
 
     onCliSetup: (program: unknown, hostServices: HostServices) => {
       // Commander-shaped surface — typed locally in commands.ts.
