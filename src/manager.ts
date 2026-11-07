@@ -42,8 +42,7 @@ export class TunnelManager {
     // neutral `ServiceRegistry` (provider defaults + listing entries). It's
     // structurally compatible — narrow via a single cast at the boundary.
     this.registry = host.serviceRegistry as unknown as
-      | TunnelServiceRegistry
-      | undefined;
+      TunnelServiceRegistry | undefined;
     this.log = new BoundLogger(host.logger, LOG_SOURCE);
     this.log.info("Tunnel manager initialized");
   }
